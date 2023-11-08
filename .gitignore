@@ -1,0 +1,7 @@
+# Intellij Configuration
+.idea/
+
+# Build files
+generated/
+project/
+target/
