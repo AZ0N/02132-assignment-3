@@ -14,12 +14,13 @@ class Accelerator extends Module {
   })
 
   // State enum and register
-  val init :: loop :: up :: down :: left :: right :: black :: white :: done :: Nil = Enum(9)
+  val init :: loop :: up :: down :: left :: right :: black :: white :: done :: borderOne :: borderLine :: Nil = Enum(11)
   val stateReg = RegInit(init)
 
   // Support registers
   val x = RegInit(0.U(32.W))
   val y = RegInit(0.U(32.W))
+  val borderAdress = RegInit(0.U(32.W))
 
   // Default values
   io.done := false.B
@@ -30,39 +31,38 @@ class Accelerator extends Module {
   // FSMD Switch
   switch(stateReg) {
     is(init) {
-      x := 0.U
+      x := 1.U
       y := 0.U
+      borderAdress := 400.U
       
       when (io.start) {
-        stateReg := black
+        stateReg := borderOne
       } .otherwise {
         stateReg := init
       }
     }
     is(loop) {
-      when (y === 19.U) {
-        y := 0.U
-
-        // Check done
-        when (x === 19.U) {
+      when (y === 18.U){
+        y := 1.U
+        when ( x === 18.U){
           stateReg := done
-        } .otherwise {
+        } .otherwise{
           x := x + 1.U
-          // Since y = 0, color the pixel black
-          stateReg := black
+            io.address := 20.U + x +1.U
+            when (io.dataRead === 0.U) {
+              stateReg := black
+            } .otherwise {
+              stateReg := up
+            }
         }
-      } .otherwise {
+      } .otherwise{
         y := y + 1.U
-        when (x === 0.U || x === 19.U || y + 1.U === 19.U) {
-          stateReg := black
-        } .otherwise {
-          io.address := 20.U * (y + 1.U) + x
+        io.address := 20.U * (y + 1.U) + x
           when (io.dataRead === 0.U) {
             stateReg := black
           } .otherwise {
             stateReg := up
           }
-        }
       }
     }
     is(up) {
@@ -113,5 +113,29 @@ class Accelerator extends Module {
       io.done := true.B
       stateReg := done
     }
+
+    is(borderOne){
+      io.writeEnable := true.B
+      io.address := borderAdress
+      io.dataWrite := 0.U 
+      borderAdress := borderAdress + 1.U
+      when(borderAdress <= 418.U || borderAdress >= 779.U){
+        when(borderAdress >= 799.U){
+          stateReg := loop
+        } .otherwise {
+        stateReg := borderOne
+        }
+      } .otherwise {
+          stateReg := borderLine
+        }
+    }
+    is(borderLine){
+      io.writeEnable := true.B
+      io.address := borderAdress
+      io.dataWrite := 0.U
+      borderAdress := borderAdress + 19.U
+      stateReg := borderOne
+    }
+
   }
 }
