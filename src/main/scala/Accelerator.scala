@@ -14,7 +14,7 @@ class Accelerator extends Module {
   })
 
   // State enum and register
-  val init :: loop :: pixel :: up :: down :: left :: right :: black :: white :: done :: Nil = Enum(10)
+  val init :: loop :: up :: down :: left :: right :: black :: white :: done :: Nil = Enum(9)
   val stateReg = RegInit(init)
 
   // Support registers
@@ -40,7 +40,6 @@ class Accelerator extends Module {
       }
     }
     is(loop) {
-
       when (y === 19.U) {
         y := 0.U
 
@@ -57,16 +56,13 @@ class Accelerator extends Module {
         when (x === 0.U || x === 19.U || y + 1.U === 19.U) {
           stateReg := black
         } .otherwise {
-          stateReg := pixel
+          io.address := 20.U * (y + 1.U) + x
+          when (io.dataRead === 0.U) {
+            stateReg := black
+          } .otherwise {
+            stateReg := up
+          }
         }
-      }
-    }
-    is(pixel) {
-      io.address := 20.U * y + x
-      when (io.dataRead === 0.U) {
-        stateReg := black
-      } .otherwise {
-        stateReg := up
       }
     }
     is(up) {
