@@ -14,7 +14,7 @@ class Accelerator extends Module {
   })
 
   // State enum and register
-  val init :: loop :: up :: down :: left :: right :: black :: white :: done :: borderOne :: borderLine :: Nil = Enum(11)
+  val init :: loop :: up :: down :: left :: right :: black ::blackToBlack :: white :: done :: borderOne :: borderLine :: Nil = Enum(12)
   val stateReg = RegInit(init)
 
   // Support registers
@@ -42,7 +42,7 @@ class Accelerator extends Module {
       }
     }
     is(loop) {
-      when (y === 18.U){
+      when (y >= 18.U){
         y := 1.U
         when ( x === 18.U){
           stateReg := done
@@ -50,7 +50,7 @@ class Accelerator extends Module {
           x := x + 1.U
             io.address := 20.U + x +1.U
             when (io.dataRead === 0.U) {
-              stateReg := black
+              stateReg := blackToBlack
             } .otherwise {
               stateReg := up
             }
@@ -59,7 +59,7 @@ class Accelerator extends Module {
         y := y + 1.U
         io.address := 20.U * (y + 1.U) + x
           when (io.dataRead === 0.U) {
-            stateReg := black
+            stateReg := blackToBlack
           } .otherwise {
             stateReg := up
           }
@@ -102,6 +102,13 @@ class Accelerator extends Module {
       io.dataWrite := 0.U
       io.writeEnable := true.B
       stateReg := loop
+    }
+    is(blackToBlack){
+      io.address := 20.U * y + x + 400.U
+      io.dataWrite := 0.U
+      io.writeEnable := true.B
+      y := y + 1.U
+      stateReg := black
     }
     is(white) {
       io.address := 20.U * y + x + 400.U
