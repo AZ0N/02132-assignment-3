@@ -12,3 +12,5 @@ Cycle counts for processing `cellImage`:
 | Merge loop + border | 1277        |
 | Merge loop + pixel  | 953         |
 | Write border sep..  | 878         |
+| Black to Black 1D   | 742         |
+| Next is white 1D    | 713         |

@@ -21,7 +21,7 @@ class Accelerator extends Module {
   val x = RegInit(0.U(32.W))
   val y = RegInit(0.U(32.W))
   val borderAdress = RegInit(0.U(32.W))
-
+  val nextIsWhite = RegInit(false.B)
   // Default values
   io.done := false.B
   io.address := 0.U(16.W)
@@ -52,7 +52,7 @@ class Accelerator extends Module {
             when (io.dataRead === 0.U) {
               stateReg := blackToBlack
             } .otherwise {
-              stateReg := up
+              stateReg := left
             }
         }
       } .otherwise{
@@ -61,7 +61,7 @@ class Accelerator extends Module {
           when (io.dataRead === 0.U) {
             stateReg := blackToBlack
           } .otherwise {
-            stateReg := up
+            stateReg := left
           }
       }
     }
@@ -78,7 +78,7 @@ class Accelerator extends Module {
       when (io.dataRead === 0.U) {
         stateReg := black
       } .otherwise {
-        stateReg := right 
+        stateReg := white 
       }
     }
     is(left) {
@@ -86,7 +86,8 @@ class Accelerator extends Module {
       when (io.dataRead === 0.U) {
         stateReg := black
       } .otherwise {
-        stateReg := white 
+        nextIsWhite := true.B
+        stateReg := right 
       }
     }
     is(right) {
@@ -94,14 +95,20 @@ class Accelerator extends Module {
       when (io.dataRead === 0.U) {
         stateReg := black
       } .otherwise {
-        stateReg := left 
+        stateReg := up 
       }
     }
     is(black) {
       io.address := 20.U * y + x + 400.U
       io.dataWrite := 0.U
       io.writeEnable := true.B
-      stateReg := loop
+      when ( nextIsWhite === true.B){
+        nextIsWhite := false.B
+        y := y + 1.U
+        stateReg := left
+      } .otherwise {
+        stateReg := loop
+      }
     }
     is(blackToBlack){
       io.address := 20.U * y + x + 400.U
@@ -114,7 +121,13 @@ class Accelerator extends Module {
       io.address := 20.U * y + x + 400.U
       io.dataWrite := 255.U 
       io.writeEnable := true.B
-      stateReg := loop
+      when ( nextIsWhite === true.B){
+        nextIsWhite := false.B
+        y := y + 1.U
+        stateReg := left
+      } .otherwise {
+        stateReg := loop
+      }
     }
     is(done) {
       io.done := true.B
