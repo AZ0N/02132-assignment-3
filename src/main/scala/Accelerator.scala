@@ -14,7 +14,7 @@ class Accelerator extends Module {
   })
 
   // State enum and register
-  val init :: loop :: up :: down :: left :: right :: black ::blackToBlack :: white :: done :: borderOne :: borderLine :: Nil = Enum(12)
+  val init :: loop :: up :: down :: left :: right :: black :: blackToBlack :: blackBelow :: white :: done :: borderOne :: borderLine :: Nil = Enum(13)
   val stateReg = RegInit(init)
 
   // Support registers
@@ -22,6 +22,7 @@ class Accelerator extends Module {
   val y = RegInit(0.U(32.W))
   val borderAdress = RegInit(0.U(32.W))
   val nextIsWhite = RegInit(false.B)
+  val nextLine = Reg(Vec(18, UInt(2.W)))
 
   // Default values
   io.done := false.B
@@ -46,17 +47,29 @@ class Accelerator extends Module {
     }
     is(loop) {
       when (y >= 18.U){
-        y := 1.U
         when ( x === 18.U){
           stateReg := done
         } .otherwise{
-          x := x + 1.U
-          checkPixel(20.U + (x + 1.U), blackToBlack, left)
-        }
+                x := x + 1.U
+                y := 1.U
+            when (nextLine(1.U) === 1.U){
+              nextLine(1.U) := 0.U
+              writeBlack(x + 1.U, 1.U)
+            } .otherwise {
+                io.writeEnable := false.B
+                checkPixel(20.U + (x + 1.U), blackToBlack, left)
+              }
+          }  
       } .otherwise{
-        y := y + 1.U
-        checkPixel(20.U * (y + 1.U) + x, blackToBlack, left)
-      }
+        when (nextLine(y+1.U) === 1.U){
+          nextLine(y+1.U) := 0.U
+          writeBlack(x, y + 1.U)
+          y := y + 1.U
+        } .otherwise {
+            io.writeEnable := false.B
+            y := y + 1.U
+            checkPixel(20.U * (y + 1.U) + x, blackToBlack, left)}
+        }
     }
     is(up) {
       checkPixel(20.U * y + x + 1.U, black, down)
@@ -65,7 +78,7 @@ class Accelerator extends Module {
       checkPixel(20.U * y + x - 1.U, black, white)
     }
     is(left) {
-      checkPixel(20.U * (y + 1.U) + x, blackToBlack, right)
+      checkPixel(20.U * (y + 1.U) + x, black, right)
       when (io.dataRead === 255.U){
         nextIsWhite := true.B
       }
@@ -79,12 +92,17 @@ class Accelerator extends Module {
     }
     is(blackToBlack){
       writeBlack(x, y)
-      when (y === 18.U){
-        stateReg := loop
-      } . otherwise {
-        y := y + 1.U
-        stateReg := black
-      }
+      nextLine(y) := 1.U
+        when (y === 18.U){
+          stateReg := loop
+        } . otherwise {
+          when (nextLine(y+1.U) === 1.U){
+            stateReg := loop
+          } otherwise {
+            y := y + 1.U
+            stateReg := black
+          }
+        }
     }
     is(white) {
       writeWhite(x, y)
@@ -118,42 +136,50 @@ class Accelerator extends Module {
 
   def writeBlack(x: UInt, y: UInt): Unit = {
     io.address := 20.U * y + x + 400.U
-    io.dataWrite := 0.U
+    io.dataWrite := 255.U
     io.writeEnable := true.B
   }
 
   def writeWhite(x: UInt, y: UInt): Unit = {
     io.address := 20.U * y + x + 400.U
-    io.dataWrite := 255.U
+    io.dataWrite := 0.U
     io.writeEnable := true.B
   }
 
   def writeBorder(borderAdress: UInt): Unit = {
     io.address := borderAdress
-    io.dataWrite := 0.U
+    io.dataWrite := 255.U
     io.writeEnable := true.B
   }
 
-  def checkPixel(address: UInt, blackState: UInt, whiteState:UInt): Unit = {
+  def checkPixel(address: UInt, blackState: UInt, whiteState: UInt): Unit = {
     io.address := address
     when (io.dataRead === 0.U) {
+      when(nextLine(y +1.U) === 1.U){
+        stateReg := black
+      } .otherwise {
       stateReg := blackState
+      }
     } .otherwise {
       stateReg := whiteState
     }
   }
   
   def nextIsWhiteCheck(nextIsWhite : Bool) = {
+      nextIsWhite := false.B
+    when (nextLine(y+1.U) === 1.U){
+      stateReg := loop
+    } .otherwise{
     when (nextIsWhite === true.B){
         when ( y === 18.U){
           stateReg := loop
         } .otherwise{
-          nextIsWhite := false.B
           y := y + 1.U
           stateReg := left
         }
       } .otherwise {
         stateReg := loop
       }
+    }
   }
 }
