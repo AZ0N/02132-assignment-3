@@ -22,6 +22,7 @@ class Accelerator extends Module {
   val y = RegInit(0.U(32.W))
   val borderAdress = RegInit(0.U(32.W))
   val nextIsWhite = RegInit(false.B)
+
   // Default values
   io.done := false.B
   io.address := 0.U(16.W)
@@ -33,7 +34,9 @@ class Accelerator extends Module {
     is(init) {
       x := 1.U
       y := 0.U
-      borderAdress := 400.U
+      borderAdress := 401.U
+      //saves a clock cycle by writing in init
+      writeBorder(400.U)
       
       when (io.start) {
         stateReg := borderOne
@@ -48,86 +51,44 @@ class Accelerator extends Module {
           stateReg := done
         } .otherwise{
           x := x + 1.U
-            io.address := 20.U + x +1.U
-            when (io.dataRead === 0.U) {
-              stateReg := blackToBlack
-            } .otherwise {
-              stateReg := left
-            }
+          checkPixel(20.U + (x + 1.U), blackToBlack, left)
         }
       } .otherwise{
         y := y + 1.U
-        io.address := 20.U * (y + 1.U) + x
-          when (io.dataRead === 0.U) {
-            stateReg := blackToBlack
-          } .otherwise {
-            stateReg := left
-          }
+        checkPixel(20.U * (y + 1.U) + x, blackToBlack, left)
       }
     }
     is(up) {
-      io.address := 20.U * y + x + 1.U
-      when (io.dataRead === 0.U) {
-        stateReg := black
-      } .otherwise {
-        stateReg := down 
-      }
+      checkPixel(20.U * y + x + 1.U, black, down)
     }
     is(down) {
-      io.address := 20.U * y + x - 1.U 
-      when (io.dataRead === 0.U) {
-        stateReg := black
-      } .otherwise {
-        stateReg := white 
-      }
+      checkPixel(20.U * y + x - 1.U, black, white)
     }
     is(left) {
-      io.address := 20.U * (y + 1.U) + x 
-      when (io.dataRead === 0.U) {
-        stateReg := black
-      } .otherwise {
+      checkPixel(20.U * (y + 1.U) + x, blackToBlack, right)
+      when (io.dataRead === 255.U){
         nextIsWhite := true.B
-        stateReg := right 
       }
     }
     is(right) {
-      io.address := 20.U * (y - 1.U) + x 
-      when (io.dataRead === 0.U) {
-        stateReg := black
-      } .otherwise {
-        stateReg := up 
-      }
+      checkPixel(20.U * (y - 1.U) + x, black, up)
     }
     is(black) {
-      io.address := 20.U * y + x + 400.U
-      io.dataWrite := 0.U
-      io.writeEnable := true.B
-      when ( nextIsWhite === true.B){
-        nextIsWhite := false.B
-        y := y + 1.U
-        stateReg := left
-      } .otherwise {
-        stateReg := loop
-      }
+      writeBlack(x, y)
+      nextIsWhiteCheck(nextIsWhite)
     }
     is(blackToBlack){
-      io.address := 20.U * y + x + 400.U
-      io.dataWrite := 0.U
-      io.writeEnable := true.B
-      y := y + 1.U
-      stateReg := black
+      writeBlack(x, y)
+      when (y === 18.U){
+        stateReg := loop
+      } . otherwise {
+        y := y + 1.U
+        stateReg := black
+      }
     }
     is(white) {
-      io.address := 20.U * y + x + 400.U
-      io.dataWrite := 255.U 
-      io.writeEnable := true.B
-      when ( nextIsWhite === true.B){
-        nextIsWhite := false.B
-        y := y + 1.U
-        stateReg := left
-      } .otherwise {
-        stateReg := loop
-      }
+      writeWhite(x, y)
+      nextIsWhiteCheck(nextIsWhite)
     }
     is(done) {
       io.done := true.B
@@ -135,9 +96,7 @@ class Accelerator extends Module {
     }
 
     is(borderOne){
-      io.writeEnable := true.B
-      io.address := borderAdress
-      io.dataWrite := 0.U 
+      writeBorder(borderAdress)
       borderAdress := borderAdress + 1.U
       when(borderAdress <= 418.U || borderAdress >= 779.U){
         when(borderAdress >= 799.U){
@@ -150,12 +109,51 @@ class Accelerator extends Module {
         }
     }
     is(borderLine){
-      io.writeEnable := true.B
-      io.address := borderAdress
-      io.dataWrite := 0.U
+      writeBorder(borderAdress)
       borderAdress := borderAdress + 19.U
       stateReg := borderOne
     }
 
+  }
+
+  def writeBlack(x: UInt, y: UInt): Unit = {
+    io.address := 20.U * y + x + 400.U
+    io.dataWrite := 0.U
+    io.writeEnable := true.B
+  }
+
+  def writeWhite(x: UInt, y: UInt): Unit = {
+    io.address := 20.U * y + x + 400.U
+    io.dataWrite := 255.U
+    io.writeEnable := true.B
+  }
+
+  def writeBorder(borderAdress: UInt): Unit = {
+    io.address := borderAdress
+    io.dataWrite := 0.U
+    io.writeEnable := true.B
+  }
+
+  def checkPixel(address: UInt, blackState: UInt, whiteState:UInt): Unit = {
+    io.address := address
+    when (io.dataRead === 0.U) {
+      stateReg := blackState
+    } .otherwise {
+      stateReg := whiteState
+    }
+  }
+  
+  def nextIsWhiteCheck(nextIsWhite : Bool) = {
+    when (nextIsWhite === true.B){
+        when ( y === 18.U){
+          stateReg := loop
+        } .otherwise{
+          nextIsWhite := false.B
+          y := y + 1.U
+          stateReg := left
+        }
+      } .otherwise {
+        stateReg := loop
+      }
   }
 }
