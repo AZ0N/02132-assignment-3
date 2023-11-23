@@ -10,7 +10,6 @@ class Accelerator extends Module {
     val dataRead = Input(UInt (32.W))
     val writeEnable = Output(Bool ())
     val dataWrite = Output(UInt (32.W))
-
   })
 
   // State enum and register
@@ -46,30 +45,31 @@ class Accelerator extends Module {
       }
     }
     is(loop) {
-      when (y >= 18.U){
-        when ( x === 18.U){
+      when (y >= 18.U) {
+        when (x === 18.U) {
           stateReg := done
-        } .otherwise{
-                x := x + 1.U
-                y := 1.U
-            when (nextLine(1.U) === 1.U){
+        } .otherwise {
+            x := x + 1.U
+            y := 1.U
+            when (nextLine(1.U) === 1.U) {
               nextLine(1.U) := 0.U
               writeBlack(x + 1.U, 1.U)
             } .otherwise {
-                io.writeEnable := false.B
-                checkPixel(20.U + (x + 1.U), blackToBlack, left)
-              }
+              io.writeEnable := false.B
+              checkPixel(20.U + (x + 1.U), blackToBlack, left)
+            }
           }  
       } .otherwise{
-        when (nextLine(y+1.U) === 1.U){
+        when (nextLine(y+1.U) === 1.U) {
           nextLine(y+1.U) := 0.U
           writeBlack(x, y + 1.U)
           y := y + 1.U
         } .otherwise {
-            io.writeEnable := false.B
-            y := y + 1.U
-            checkPixel(20.U * (y + 1.U) + x, blackToBlack, left)}
+          io.writeEnable := false.B
+          y := y + 1.U
+          checkPixel(20.U * (y + 1.U) + x, blackToBlack, left)
         }
+      }
     }
     is(up) {
       checkPixel(20.U * y + x + 1.U, black, down)
@@ -90,19 +90,19 @@ class Accelerator extends Module {
       writeBlack(x, y)
       nextIsWhiteCheck(nextIsWhite)
     }
-    is(blackToBlack){
+    is(blackToBlack) {
       writeBlack(x, y)
       nextLine(y) := 1.U
-        when (y === 18.U){
+      when (y === 18.U) {
+        stateReg := loop
+      } .otherwise {
+        when (nextLine(y+1.U) === 1.U) {
           stateReg := loop
-        } . otherwise {
-          when (nextLine(y+1.U) === 1.U){
-            stateReg := loop
-          } otherwise {
-            y := y + 1.U
-            stateReg := black
-          }
+        } otherwise {
+          y := y + 1.U
+          stateReg := black
         }
+      }
     }
     is(white) {
       writeWhite(x, y)
@@ -113,25 +113,24 @@ class Accelerator extends Module {
       stateReg := done
     }
 
-    is(borderOne){
+    is(borderOne) {
       writeBorder(borderAdress)
       borderAdress := borderAdress + 1.U
-      when(borderAdress <= 418.U || borderAdress >= 779.U){
-        when(borderAdress >= 799.U){
+      when(borderAdress <= 418.U || borderAdress >= 779.U) {
+        when(borderAdress >= 799.U) {
           stateReg := loop
         } .otherwise {
         stateReg := borderOne
         }
       } .otherwise {
-          stateReg := borderLine
-        }
+        stateReg := borderLine
+      }
     }
-    is(borderLine){
+    is(borderLine) {
       writeBorder(borderAdress)
       borderAdress := borderAdress + 19.U
       stateReg := borderOne
     }
-
   }
 
   def writeBlack(x: UInt, y: UInt): Unit = {
@@ -165,15 +164,15 @@ class Accelerator extends Module {
     }
   }
   
-  def nextIsWhiteCheck(nextIsWhite : Bool) = {
-      nextIsWhite := false.B
-    when (nextLine(y+1.U) === 1.U){
+  def nextIsWhiteCheck(nextIsWhite: Bool) = {
+    nextIsWhite := false.B
+    when (nextLine(y+1.U) === 1.U) {
       stateReg := loop
-    } .otherwise{
-    when (nextIsWhite === true.B){
-        when ( y === 18.U){
+    } .otherwise {
+      when (nextIsWhite === true.B) {
+        when ( y === 18.U) {
           stateReg := loop
-        } .otherwise{
+        } .otherwise {
           y := y + 1.U
           stateReg := left
         }
