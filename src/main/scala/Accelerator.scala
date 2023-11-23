@@ -135,19 +135,19 @@ class Accelerator extends Module {
 
   def writeBlack(x: UInt, y: UInt): Unit = {
     io.address := 20.U * y + x + 400.U
-    io.dataWrite := 255.U
+    io.dataWrite := 0.U
     io.writeEnable := true.B
   }
 
   def writeWhite(x: UInt, y: UInt): Unit = {
     io.address := 20.U * y + x + 400.U
-    io.dataWrite := 0.U
+    io.dataWrite := 255.U
     io.writeEnable := true.B
   }
 
   def writeBorder(borderAdress: UInt): Unit = {
     io.address := borderAdress
-    io.dataWrite := 255.U
+    io.dataWrite := 0.U
     io.writeEnable := true.B
   }
 
