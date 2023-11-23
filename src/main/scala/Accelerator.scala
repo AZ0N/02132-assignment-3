@@ -14,8 +14,9 @@ class Accelerator extends Module {
   })
 
   // State enum and register
-  val init  :: done :: borderTop :: borderBottom :: borderLeft :: borderRight :: forLoop :: blackCenter :: blackTop :: blackBottom :: blackLeft :: blackRight :: firstRow :: lastRow :: rowOneBlack :: rowOneWhite :: rowFiveInit :: rowFourInit :: rowFiveBlack :: rowFiveWhite :: rowFourWhite :: rowFourBlack:: Nil = Enum(22)
+  val init  :: done :: borderTop :: borderBottom :: borderLeft :: borderRight :: forLoop :: blackCenter :: blackTop :: blackBottom :: blackLeft :: blackRight :: firstRow :: lastRow :: rowBlack :: rowWhite :: rowFiveInit :: rowFourInit :: rowFiveBlack :: rowFiveWhite :: rowFourWhite :: rowFourBlack:: Nil = Enum(22)
   val rowOne :: rowTwo :: rowThree :: rowFour :: rowFive :: Nil = Enum(5)
+  val white :: black :: written :: Nil = Enum(3)
   val stateReg = RegInit(init)
 
   // Support registers
@@ -24,6 +25,8 @@ class Accelerator extends Module {
   val rowType = RegInit(0.U(32.W))
   val borderAdress = RegInit(0.U(32.W))
   val nextIsWhite = RegInit(false.B)
+  val prevLine = Reg(Vec(18, UInt(2.W)))
+  val thisLine = Reg(Vec(18, UInt(2.W)))
   val nextLine = Reg(Vec(18, UInt(2.W)))
 
   // Default values
@@ -165,17 +168,17 @@ class Accelerator extends Module {
     is(firstRow){
       io.address := 20.U * y + x + 400.U
       when(io.dataRead === 0.U){
-        stateReg := rowOneBlack
+        stateReg := rowBlack
       } .otherwise{
-        stateReg := rowOneWhite
+        stateReg := rowWhite
       }
     }
     is(lastRow){
       io.address := 20.U * y + x + 400.U
       when(io.dataRead === 0.U){
-        stateReg := rowOneBlack
+        stateReg := rowBlack
       } .otherwise{
-        stateReg := rowOneWhite
+        stateReg := rowWhite
       }
     }
     is(rowFiveInit){
@@ -194,7 +197,7 @@ class Accelerator extends Module {
         stateReg := rowFourWhite
       }
     }
-    is(rowOneBlack){
+    is(rowBlack){
       writeBlack(x,y)
       when(x >= 16.U){
           when(rowType === rowFive){
@@ -214,7 +217,7 @@ class Accelerator extends Module {
       }
       
     }
-    is(rowOneWhite){
+    is(rowWhite){
       stateReg := done
     }
     is(rowFiveBlack){
@@ -266,6 +269,7 @@ class Accelerator extends Module {
       stateReg := done
     } .otherwise {
       y := y + 1.U
+      updateRegisters()
       when(y === 17.U){
         x := 1.U
         stateReg := lastRow
@@ -301,21 +305,14 @@ class Accelerator extends Module {
           }
         }
       }
-        
-      
-      
     }   
   }
-  // def checkPixel(address: UInt, blackState: UInt, whiteState: UInt): Unit = {
-  //   io.address := address
-  //   when (io.dataRead === 0.U) {
-  //     when(nextLine(y +1.U) === 1.U){
-  //       stateReg := black
-  //     } .otherwise {
-  //     stateReg := blackState
-  //     }
-  //   } .otherwise {
-  //     stateReg := whiteState
-  //   }
-  // }
+
+  def updateRegisters(): Unit = {
+    prevLine := thisLine
+    thisLine := nextLine
+    for (i <- 0 until 18) {
+      nextLine(i) := 0.U
+    }
+  }
 }
