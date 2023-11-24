@@ -14,9 +14,9 @@ class Accelerator extends Module {
   })
 
   // State enum and register
-  val init  :: done :: border :: specialRow :: forLoop :: blackCross :: firstRow :: lastRow :: rowBlack :: rowWhite :: Nil = Enum(10)
+  val init  :: done :: forLoop :: border :: specialRow :: blackCross :: whiteCross :: firstRow :: lastRow :: rowBlack :: rowWhite :: Nil = Enum(10)
   val rowOne :: rowTwo :: rowThree :: rowFour :: rowFive :: Nil = Enum(5)
-  val white :: black :: written :: Nil = Enum(3)
+  val white :: black :: unkown :: Nil = Enum(3)
   val left :: right :: up :: down :: center :: rowFourFive :: Nil = Enum(6)
   val stateReg = RegInit(init)
   val innerState = RegInit(up)
@@ -26,7 +26,7 @@ class Accelerator extends Module {
   val y = RegInit(0.U(32.W))
   val rowType = RegInit(0.U(32.W))
   val borderAdress = RegInit(0.U(32.W))
-  val nextIsWhite = RegInit(false.B)
+  val centerIsWhite = RegInit(false.B)
   val prevLine = Reg(Vec(18, UInt(2.W)))
   val thisLine = Reg(Vec(18, UInt(2.W)))
   val nextLine = Reg(Vec(18, UInt(2.W)))
@@ -57,15 +57,44 @@ class Accelerator extends Module {
     is(forLoop) {
       io.address := 20.U * y + x
       when (io.dataRead === 0.U){
+        thisLine(x) := black
         innerState := center
         stateReg := blackCross
       } .otherwise {
+        thisLine(x) := white
         innerState := left
         stateReg := done
       }
     }
     is(blackCross) {
       blackFSMD()
+    }
+    is(whiteCross) {
+      whiteFSMD()
+    }
+    is(black){
+      switch(innerState){
+        is(left){
+          writeBlack(x-1.U,y)
+          stateReg := whiteCross
+          innerState := right
+        }
+        is(right){
+          writeBlack(x+1.U,y)
+          stateReg := whiteCross
+          innerState := up
+        }
+        is(up){
+          writeBlack(x,y-1.U)
+          stateReg := whiteCross
+          innerState := down
+        }
+        is(down){
+          writeBlack(x,y+1.U)
+          stateReg := whiteCross
+          innerState := center
+        }
+      }
     }
     is(border){
       borderFSMD()
@@ -269,7 +298,143 @@ class Accelerator extends Module {
   }
   //Seperate FSMD is a read pixel is white
   def whiteFSMD(): Unit = {
-    
+    switch(innerState){
+      is(left){
+        switch(thisLine(x-1.U)){
+          is(black){
+            centerIsWhite := false.B
+            writeBlack(x - 1.U,y)
+          }
+          is(white){
+            whiteInnerFSMD()
+          }
+          is(unkown){
+            io.address := 20.U * y + (x - 1.U) + 400.U
+            when(io.dataRead === 0.U){
+              centerIsWhite := false.B
+              thisLine(x - 1.U) := black
+              //go to write black
+            } .otherwise{
+              //go to check around loop
+              thisLine(x - 1.U) := white
+            }
+          }
+        }
+      }
+      is(right){
+        io.address := 20.U * y + (x + 1.U) + 400.U
+        when(io.dataRead === 0.U){
+          centerIsWhite := false.B
+          thisLine(x + 1.U) := black
+        } .otherwise{
+          thisLine(x + 1.U) := white
+        }
+      }
+      is(up){
+        io.address := 20.U * (y - 1.U) + x + 400.U
+        when(io.dataRead === 0.U){
+          centerIsWhite := false.B
+          prevLine(x) := black
+        } .otherwise{
+          prevLine(x) := white
+        }
+      }
+      is(down){
+        io.address := 20.U * (y + 1.U) + x + 400.U
+        when(io.dataRead === 0.U){
+          centerIsWhite := false.B
+          nextLine(x) := black
+        } .otherwise{
+          nextLine(x) := white
+        }
+      }
+
+      is(center){
+        when(centerIsWhite === true.B){
+          writeWhite(x,y)
+          stateReg := forLoop
+        } .otherwise{
+          writeBlack(x,y)
+          stateReg := forLoop
+        }
+      }
+    }
+  }
+  def whiteInnerFSMD(x: UInt, y: UInt): Unit = {
+    switch(innerInnerState){
+      is(left){
+        switch(thisLine(x-1.U)){
+          is(black){
+            stateReg := black
+            //writeBlack(x,y)
+            //TODO innerState := ?????
+          }
+          is(white){
+            //TODO
+            innerInnerState := up 
+          }
+          is(unkown){
+            io.address := 20.U * y + (x - 1.U)
+            when(io.dataRead === 0.U){
+              thisLine(x - 1.U) := black
+              stateReg := black
+            } .otherwise{
+              thisLine(x - 1.U) := white
+              //TODO
+              innerInnerState := up
+            }
+          }
+        }
+      }
+      is(up){
+        switch(prevLine(x)){
+          is(black){
+            stateReg := black
+            //writeBlack(x,y)
+            //TODO innerState := ?????
+          }
+          is(white){
+            //TODO
+            innerInnerState := right 
+          }
+          is(unkown){
+            io.address := 20.U * (y - 1.U) + (x)
+            when(io.dataRead === 0.U){
+              prevLine(x) := black
+              stateReg := black
+            } .otherwise{
+              prevLine(x) := white
+              //TODO
+              innerInnerState := right
+            }
+          }
+        }
+      }
+      is(right){
+        switch(thisLine(x+1.U)){
+          is(black){
+            //writeBlack(x,y)
+            //TODO innerState := ?????
+            stateReg := black
+          }
+          is(white){
+            //TODO
+            innerInnerState := down 
+          }
+          is(unkown){
+            io.address := 20.U * y + (x + 1.U)
+            when(io.dataRead === 0.U){
+              thisLine(x + 1.U) := black
+              stateReg := black
+            } .otherwise{
+              thisLine(x + 1.U) := white
+              //TODO
+              innerInnerState := down
+            }
+          }
+        }
+      }
+    }
   }
 
   def specialRowFSMD(): Unit = {
