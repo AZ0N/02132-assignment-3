@@ -14,7 +14,7 @@ class Accelerator extends Module {
   })
 
   // State enum and register
-  val init  :: done :: border :: specialRow :: borderTop :: borderBottom :: borderLeft :: borderRight :: forLoop :: blackCross :: firstRow :: lastRow :: rowBlack :: rowWhite :: rowFiveInit :: rowFourInit :: rowFiveBlack :: rowFiveWhite :: rowFourWhite :: rowFourBlack:: Nil = Enum(20)
+  val init  :: done :: border :: specialRow :: forLoop :: blackCross :: firstRow :: lastRow :: rowBlack :: rowWhite :: Nil = Enum(10)
   val rowOne :: rowTwo :: rowThree :: rowFour :: rowFive :: Nil = Enum(5)
   val white :: black :: written :: Nil = Enum(3)
   val left :: right :: up :: down :: center :: rowFourFive :: Nil = Enum(6)
