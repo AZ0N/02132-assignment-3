@@ -30,6 +30,7 @@ class Accelerator extends Module {
   val prevLine = Reg(Vec(18, UInt(2.W)))
   val thisLine = Reg(Vec(18, UInt(2.W)))
   val nextLine = Reg(Vec(18, UInt(2.W)))
+  val Lines = Reg(Vec(4, Vec(18, UInt(2.W))))
 
   // Default values
   io.done := false.B
@@ -300,23 +301,24 @@ class Accelerator extends Module {
   def whiteFSMD(): Unit = {
     switch(innerState){
       is(left){
-        switch(thisLine(x-1.U)){
+        switch(lines(2)(x-1.U)){
           is(black){
             centerIsWhite := false.B
             writeBlack(x - 1.U,y)
+            swapInnerStateWhite()
           }
           is(white){
-            whiteInnerFSMD()
+            whiteInnerFSMD(x-1.U,y,2)
           }
           is(unkown){
             io.address := 20.U * y + (x - 1.U) + 400.U
             when(io.dataRead === 0.U){
               centerIsWhite := false.B
-              thisLine(x - 1.U) := black
-              //go to write black
+              lines(2)(x - 1.U) := black
+              stateReg := black
             } .otherwise{
-              //go to check around loop
-              thisLine(x - 1.U) := white
+              //TODO go to check around loop
+              lines(2)(x - 1.U) := white
             }
           }
         }
@@ -360,81 +362,85 @@ class Accelerator extends Module {
       }
     }
   }
-  def whiteInnerFSMD(x: UInt, y: UInt): Unit = {
-    switch(innerInnerState){
-      is(left){
-        switch(thisLine(x-1.U)){
-          is(black){
-            stateReg := black
-            //writeBlack(x,y)
-            //TODO innerState := ?????
-          }
-          is(white){
-            //TODO
-            innerInnerState := up 
-          }
-          is(unkown){
-            io.address := 20.U * y + (x - 1.U)
-            when(io.dataRead === 0.U){
-              thisLine(x - 1.U) := black
-              stateReg := black
-            } .otherwise{
-              thisLine(x - 1.U) := white
-              //TODO
-              innerInnerState := up
-            }
-          }
+  def whiteInnerFSMD(x: UInt, y: UInt, a: UInt): Unit = {
+    when(lines(a)(x-1.U) === black || lines(a)(x+1.U) === black || lines(a-1.U)(x) === black || lines(a+1.U)(x) === black){
+      writeBlack(x,y)
+      swapInnerStateWhite()
+    } .otherwise{
+      switch(innerInnerState){
+        is(left){
+          innerInnerLeft(x,y,a)
         }
-      }
-      is(up){
-        switch(prevLine(x)){
-          is(black){
-            stateReg := black
-            //writeBlack(x,y)
-            //TODO innerState := ?????
-          }
-          is(white){
-            //TODO
-            innerInnerState := right 
-          }
-          is(unkown){
-            io.address := 20.U * (y - 1.U) + (x)
-            when(io.dataRead === 0.U){
-              prevLine(x) := black
-              stateReg := black
-            } .otherwise{
-              prevLine(x) := white
-              //TODO
-              innerInnerState := right
-            }
-          }
+        is(up){
+          innerInnerUp(x,y,a)
         }
-      }
-      is(right){
-        switch(thisLine(x+1.U)){
-          is(black){
-            //writeBlack(x,y)
-            //TODO innerState := ?????
-            stateReg := black
-          }
-          is(white){
-            //TODO
-            innerInnerState := down 
-          }
-          is(unkown){
-            io.address := 20.U * y + (x + 1.U)
-            when(io.dataRead === 0.U){
-              thisLine(x + 1.U) := black
-              stateReg := black
-            } .otherwise{
-              thisLine(x + 1.U) := white
-              //TODO
-              innerInnerState := down
-            }
-          }
+        is(right){
+          innerInnerRight(x,y,a)
+        }
+        is(down){
+          innerInnerDown(x,y,a)
+        }
+        is(center){
+          innerInnerCenter(x,y,a)
         }
       }
     }
+  }
+
+  def swapInnerStateWhite(): Unit = {
+    switch(innerState){
+      is(left){
+        innerState := up
+      }
+      is(right){
+        innerState := down
+      }
+      is(up){
+        innerState := right
+      }
+      is(down){
+        innerState := center
+      }
+    }
+  }
+  def innerInnerState(memCheck: Uint(2.W), x: Uint, y: Uint, readAddress: Uint, nextState: Uint, altState: Unit): Unit = {
+    switch(memCheck){
+          is(black){
+            writeBlack(x,y)
+            swapInnerStateWhite()
+          }
+          is(white){
+            altState()
+          }
+          is(unkown){
+            io.address := readAddress
+            when(io.dataRead === 0.U){
+              memCheck := black
+              //TODO next line might be irrelevant
+              stateReg := black
+            } .otherwise{
+              memCheck := white
+              innerInnerState := nextState
+            }
+          }
+        }
+  }
+
+  def innerInnerLeft(x: Uint, y: Uint, a: Uint): Unit = {
+    innerInnerState(lines(a)(x-1.U), x, y, 20.U * y + (x - 1.U), up, innerInnerUp(x,y,a))
+  }
+  def innerInnerUp(x: Uint, y: Uint): Unit = {
+    innerInnerState(lines(a-1.U)(x), x, y, 20.U * (y - 1.U) + (x), right, innerInnerRight(x,y,a))
+  }
+  def innerInnerRight(x: Uint, y: Uint): Unit = {
+    innerInnerState(lines(a)(x+1.U), x, y, 20.U * y + (x + 1.U), down, innerInnerDown(x,y,a))
+  }
+  def innerInnerDown(x: Uint, y: Uint): Unit = {
+    innerInnerState(lines(a+1.U)(x), x, y, 20.U * (y + 1.U) + (x), center, innerInnerCenter(x,y,a))
+  }
+  def innerInnerCenter(x: Uint, y: Uint): Unit = {
+    writeWhite(x,y)
+    swapInnerStateWhite()
   }
 
   def specialRowFSMD(): Unit = {
