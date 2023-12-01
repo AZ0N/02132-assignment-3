@@ -78,7 +78,7 @@ class Accelerator extends Module {
       checkPixel(20.U * y + x - 1.U, black, white)
     }
     is(left) {
-      checkPixel(20.U * (y + 1.U) + x, black, right)
+      checkPixel(20.U * (y + 1.U) + x, blackToBlack, right)
       when (io.dataRead === 255.U){
         nextIsWhite := true.B
       }
@@ -154,7 +154,7 @@ class Accelerator extends Module {
   def checkPixel(address: UInt, blackState: UInt, whiteState: UInt): Unit = {
     io.address := address
     when (io.dataRead === 0.U) {
-      when(nextLine(y +1.U) === 1.U){
+      when(nextLine(y + 1.U) === 1.U){
         stateReg := black
       } .otherwise {
       stateReg := blackState
